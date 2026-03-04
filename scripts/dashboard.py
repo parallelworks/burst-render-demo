@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Live dashboard server — receives tiles from workers and streams to browser."""
+
+import asyncio
+import base64
+import json
+import os
+import time
+from pathlib import Path
+
+from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, HTMLResponse
+
+app = FastAPI()
+
+TEMPLATE_DIR = Path(__file__).parent / "templates"
+
+# In-memory state
+state = {
+    "tiles": {},          # (x,y) -> {png_b64, metadata}
+    "grid_size": 8,
+    "image_size": 256,
+    "start_time": None,
+    "site_stats": {},     # site_id -> {count, total_render_ms, last_ts}
+}
+connected_ws: list[WebSocket] = []
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    return (TEMPLATE_DIR / "index.html").read_text()
+
+
+@app.get("/api/state")
+async def get_state():
+    """Return current state for late-joining browsers."""
+    return {
+        "grid_size": state["grid_size"],
+        "image_size": state["image_size"],
+        "tiles": {
+            f"{k[0]},{k[1]}": v for k, v in state["tiles"].items()
+        },
+        "site_stats": state["site_stats"],
+        "elapsed_s": round(time.time() - state["start_time"], 1) if state["start_time"] else 0,
+        "total_tiles": state["grid_size"] ** 2,
+        "completed_tiles": len(state["tiles"]),
+    }
+
+
+@app.post("/api/tile")
+async def receive_tile(
+    tile: UploadFile = File(...),
+    metadata: str = Form(...),
+):
+    """Receive a rendered tile from a worker."""
+    meta = json.loads(metadata)
+    png_bytes = await tile.read()
+    png_b64 = base64.b64encode(png_bytes).decode()
+
+    tx, ty = meta["tile_x"], meta["tile_y"]
+    site_id = meta.get("site_id", "unknown")
+
+    if state["start_time"] is None:
+        state["start_time"] = time.time()
+
+    state["grid_size"] = meta.get("grid_size", state["grid_size"])
+    state["image_size"] = meta.get("width", state["image_size"])
+
+    state["tiles"][(tx, ty)] = {"png_b64": png_b64, "metadata": meta}
+
+    # Update site stats
+    if site_id not in state["site_stats"]:
+        state["site_stats"][site_id] = {"count": 0, "total_render_ms": 0, "first_ts": time.time()}
+    stats = state["site_stats"][site_id]
+    stats["count"] += 1
+    stats["total_render_ms"] += meta.get("render_time_ms", 0)
+    stats["last_ts"] = time.time()
+
+    # Broadcast to all WebSocket clients
+    msg = json.dumps({
+        "type": "tile",
+        "tile_x": tx,
+        "tile_y": ty,
+        "site_id": site_id,
+        "render_time_ms": meta.get("render_time_ms", 0),
+        "png_b64": png_b64,
+        "completed": len(state["tiles"]),
+        "total": state["grid_size"] ** 2,
+        "site_stats": state["site_stats"],
+        "elapsed_s": round(time.time() - state["start_time"], 1) if state["start_time"] else 0,
+    })
+    stale = []
+    for ws in connected_ws:
+        try:
+            await ws.send_text(msg)
+        except Exception:
+            stale.append(ws)
+    for ws in stale:
+        connected_ws.remove(ws)
+
+    return {"status": "ok", "completed": len(state["tiles"])}
+
+
+@app.post("/api/config")
+async def set_config(grid_size: int = Form(8), image_size: int = Form(256)):
+    """Set grid configuration (called before rendering starts)."""
+    state["grid_size"] = grid_size
+    state["image_size"] = image_size
+    state["tiles"] = {}
+    state["start_time"] = None
+    state["site_stats"] = {}
+    return {"status": "ok", "grid_size": grid_size, "image_size": image_size}
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    await ws.accept()
+    connected_ws.append(ws)
+    try:
+        # Send current state on connect
+        await ws.send_text(json.dumps({
+            "type": "init",
+            "grid_size": state["grid_size"],
+            "image_size": state["image_size"],
+            "completed": len(state["tiles"]),
+            "total": state["grid_size"] ** 2,
+            "site_stats": state["site_stats"],
+        }))
+        while True:
+            await ws.receive_text()  # keep alive
+    except WebSocketDisconnect:
+        if ws in connected_ws:
+            connected_ws.remove(ws)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("DASHBOARD_PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
