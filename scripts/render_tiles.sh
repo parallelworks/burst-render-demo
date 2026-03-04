@@ -121,6 +121,7 @@ render_one() {
         --site-id "${SITE_ID}" \
         --cluster-name "${CLUSTER_NAME}" \
         --scheduler-type "${SCHEDULER_TYPE}" \
+        --num-workers "${NUM_WORKERS}" \
         --output "${tile_file}" \
     )
 

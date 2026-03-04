@@ -107,6 +107,7 @@ async def receive_tile(
             "count": 0, "total_render_ms": 0, "first_ts": now,
             "cluster_name": meta.get("cluster_name", ""),
             "scheduler_type": meta.get("scheduler_type", ""),
+            "num_workers": meta.get("num_workers", 1),
         }
     stats = state["site_stats"][site_id]
     stats["count"] += 1

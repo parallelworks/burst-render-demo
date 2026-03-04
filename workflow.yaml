@@ -187,6 +187,8 @@ jobs:
           export GRID_SIZE="${{ inputs.render_settings.grid_size }}"
           export IMAGE_SIZE="${{ inputs.render_settings.image_size }}"
           export PALETTE="${{ inputs.render_settings.palette }}"
+          PARALLELISM="${{ inputs.render_settings.parallelism }}"
+          [ "${PARALLELISM}" != "auto" ] && export NUM_WORKERS="${PARALLELISM}"
 
           bash scripts/render_tiles.sh
 
@@ -268,6 +270,8 @@ jobs:
           export GRID_SIZE="${{ inputs.render_settings.grid_size }}"
           export IMAGE_SIZE="${{ inputs.render_settings.image_size }}"
           export PALETTE="${{ inputs.render_settings.palette }}"
+          PARALLELISM="${{ inputs.render_settings.parallelism }}"
+          [ "${PARALLELISM}" != "auto" ] && export NUM_WORKERS="${PARALLELISM}"
 
           bash scripts/render_tiles.sh
 
@@ -360,6 +364,23 @@ jobs:
                 label: Ocean
               - value: cosmic
                 label: Cosmic Purple
+
+          parallelism:
+            type: dropdown
+            label: Worker Threads
+            tooltip: Number of parallel render processes per site. Auto uses all available CPU cores.
+            default: "auto"
+            options:
+              - value: "auto"
+                label: "Auto (all cores)"
+              - value: "1"
+                label: "Single-threaded"
+              - value: "2"
+                label: "2 workers"
+              - value: "4"
+                label: "4 workers"
+              - value: "8"
+                label: "8 workers"
 
       # -----------------------------------------------------------------------
       # Scheduler

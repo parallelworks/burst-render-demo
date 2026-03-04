@@ -595,6 +595,7 @@ function updateStats(elapsed_s) {
       const color = getSiteColor(siteId);
       const name = s.cluster_name || siteId;
       const scheduler = s.scheduler_type ? ` (${s.scheduler_type})` : '';
+      const workers = s.num_workers || 1;
       const siteLabel = `Site ${idx + 1}`;
       const icon = '&#9900;'; // generic dot icon
       const avgMs = s.count > 0 ? Math.round(s.total_render_ms / s.count) : 0;
@@ -603,7 +604,7 @@ function updateStats(elapsed_s) {
           <div class="site-icon" style="background:${color}20; color:${color};">${icon}</div>
           <div class="site-info">
             <div class="site-name">${name}${scheduler}</div>
-            <div class="site-detail">${siteLabel} &middot; ${avgMs}ms avg render</div>
+            <div class="site-detail">${siteLabel} &middot; ${workers} workers &middot; ${avgMs}ms avg</div>
           </div>
           <div class="site-count" style="color:${color}">${s.count}</div>
         </div>`;
