@@ -1,28 +1,16 @@
 #!/bin/bash
 # setup_tunnel.sh — Create a reverse SSH tunnel from on-prem to cloud
 #
+# Uses the pw CLI for authentication — no manual SSH key management needed.
+# The on-prem pw CLI is assumed to already be authenticated.
+#
 # Environment variables:
 #   CLOUD_RESOURCE_NAME - Name of the cloud resource (e.g., googlerockyv3)
 #   CLOUD_RESOURCE_IP   - IP address of the cloud resource (fallback for lookup)
 #   DASHBOARD_PORT      - Port of the dashboard on this machine
 #   PW_USER             - ACTIVATE username for SSH
-#   PW_SSH_KEY          - Path to SSH key (default: ~/.ssh/pwcli)
 
 set -e
-
-# SSH key — configurable via env var, default to standard location
-PW_SSH_KEY="${PW_SSH_KEY:-${HOME}/.ssh/pwcli}"
-if [ ! -f "${PW_SSH_KEY}" ]; then
-    echo "[WARN] SSH key not found at ${PW_SSH_KEY}"
-    # Try common alternatives
-    for key in "${HOME}/.ssh/id_rsa" "${HOME}/.ssh/id_ed25519"; do
-        if [ -f "${key}" ]; then
-            PW_SSH_KEY="${key}"
-            echo "  Using fallback key: ${PW_SSH_KEY}"
-            break
-        fi
-    done
-fi
 
 echo "=========================================="
 echo "Setting up reverse tunnel: $(date)"
@@ -40,15 +28,18 @@ for cmd in pw ~/pw/pw; do
     command -v $cmd &>/dev/null && { PW_CMD=$cmd; break; }
     [ -x "$cmd" ] && { PW_CMD=$cmd; break; }
 done
-echo "PW CLI: ${PW_CMD:-not found}"
+
+if [ -z "${PW_CMD}" ]; then
+    echo "[ERROR] pw CLI not found in PATH or ~/pw/pw"
+    exit 1
+fi
+echo "PW CLI: ${PW_CMD}"
 
 # Resolve SSH target — try name first, then discover from pw cluster list
 SSH_TARGET="${CLOUD_RESOURCE_NAME}"
 
-if [ -z "${SSH_TARGET}" ] && [ -n "${PW_CMD}" ]; then
+if [ -z "${SSH_TARGET}" ]; then
     echo "Resource name not provided, discovering from pw cluster list..."
-    # pw cluster list outputs: pw://user/name   status   type
-    # Find active cloud clusters (non-"existing" type) owned by this user
     while IFS= read -r uri; do
         name="${uri##*/}"
         SSH_TARGET="${name}"
@@ -68,18 +59,9 @@ fi
 
 echo "SSH target: ${SSH_TARGET}"
 
-# Helper: run command on cloud via pw ssh proxy
-run_on_cloud() {
-    ssh -i "${PW_SSH_KEY}" \
-        -o StrictHostKeyChecking=no \
-        -o UserKnownHostsFile=/dev/null \
-        -o ProxyCommand="pw ssh --proxy-command %h" \
-        "${PW_USER}@${SSH_TARGET}" "$@"
-}
-
-# Allocate a port on the cloud side for the tunnel
+# Allocate a port on the cloud side for the tunnel (using pw ssh directly)
 echo "Allocating port on cloud..."
-TUNNEL_PORT=$(run_on_cloud 'python3 -c "import socket; s=socket.socket(); s.bind((\"\",0)); print(s.getsockname()[1]); s.close()"' 2>/dev/null)
+TUNNEL_PORT=$(${PW_CMD} ssh "${SSH_TARGET}" 'python3 -c "import socket; s=socket.socket(); s.bind((\"\",0)); print(s.getsockname()[1]); s.close()"' 2>/dev/null)
 
 if [ -z "${TUNNEL_PORT}" ] || ! [[ "${TUNNEL_PORT}" =~ ^[0-9]+$ ]]; then
     echo "[ERROR] Failed to allocate port on cloud (got: '${TUNNEL_PORT}')"
@@ -90,13 +72,14 @@ echo "Tunnel port on cloud: ${TUNNEL_PORT}"
 echo "${TUNNEL_PORT}" > "${JOB_DIR}/TUNNEL_PORT"
 
 # Start reverse SSH tunnel: cloud:TUNNEL_PORT -> onprem:DASHBOARD_PORT
+# Uses pw ssh as ProxyCommand for the tunnel (raw ssh needed for -R flag)
 echo "Establishing reverse SSH tunnel..."
-ssh -i "${PW_SSH_KEY}" \
+ssh -i ~/.ssh/pwcli \
     -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
     -o ExitOnForwardFailure=yes \
     -o ServerAliveInterval=15 \
-    -o ProxyCommand="pw ssh --proxy-command %h" \
+    -o ProxyCommand="${PW_CMD} ssh --proxy-command %h" \
     -R "${TUNNEL_PORT}:localhost:${DASHBOARD_PORT}" \
     -N "${PW_USER}@${SSH_TARGET}" &
 TUNNEL_PID=$!
