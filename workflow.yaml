@@ -263,7 +263,7 @@ jobs:
               time:
                 label: Walltime
                 type: string
-                default: "01:00:00"
+                default: "00:05:00"
                 ignore: ${{ inputs.targets.[index].resource.schedulerType != 'slurm' || inputs.targets.[index].scheduler == false }}
 
               scheduler_directives:
