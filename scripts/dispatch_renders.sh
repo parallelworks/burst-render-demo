@@ -51,6 +51,9 @@ targets = json.loads(os.environ['TARGETS_JSON'])
 sites = []
 for i, t in enumerate(targets):
     res = t.get('resource', {})
+    # Handle resource as string (CLI) or object (UI)
+    if isinstance(res, str):
+        res = {'name': res}
     sites.append({
         'index': i,
         'name': res.get('name', f'site-{i}'),
