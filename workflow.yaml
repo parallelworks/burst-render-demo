@@ -21,7 +21,7 @@ jobs:
         ssh:
           remoteHost: ${{ inputs.onprem_resource.ip }}
         with:
-          repo: https://github.com/parallelworks/killer-app.git
+          repo: https://github.com/parallelworks/burst-render-demo.git
           branch: main
           sparse_checkout:
             - scripts
@@ -34,7 +34,7 @@ jobs:
         ssh:
           remoteHost: ${{ inputs.cloud_resource.ip }}
         with:
-          repo: https://github.com/parallelworks/killer-app.git
+          repo: https://github.com/parallelworks/burst-render-demo.git
           branch: main
           sparse_checkout:
             - scripts
