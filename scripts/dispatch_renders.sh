@@ -74,7 +74,7 @@ for i, t in enumerate(targets):
         'slurm_partition': slurm.get('partition', ''),
         'slurm_account': slurm.get('account', ''),
         'slurm_qos': slurm.get('qos', ''),
-        'slurm_time': slurm.get('time', '01:00:00'),
+        'slurm_time': slurm.get('time', '00:05:00'),
         'slurm_directives': slurm.get('scheduler_directives', ''),
         'pbs_directives': pbs.get('scheduler_directives', ''),
     })
@@ -335,7 +335,7 @@ for i in $(seq 0 $((NUM_SITES - 1))); do
     slurm_partition=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_partition',''))")
     slurm_account=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_account',''))")
     slurm_qos=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_qos',''))")
-    slurm_time=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_time','01:00:00'))")
+    slurm_time=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_time','00:05:00'))")
     slurm_directives=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_directives',''))")
     pbs_directives=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('pbs_directives',''))")
 
