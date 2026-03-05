@@ -203,6 +203,7 @@ jobs:
         run: |
           set -e
           export DASHBOARD_PORT=${{ needs.configure_dashboard.outputs.DASHBOARD_PORT }}
+          export CLOUD_RESOURCE_NAME="${{ inputs.cloud_resource.name }}"
           bash scripts/setup_tunnel.sh
 
   # =============================================================================
