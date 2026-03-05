@@ -59,6 +59,9 @@ for i, t in enumerate(targets):
     if isinstance(use_scheduler, str):
         use_scheduler = use_scheduler.lower() == 'true'
     scheduler_type = res.get('schedulerType', '')
+    # Default to slurm when scheduler requested but type unknown
+    if use_scheduler and not scheduler_type:
+        scheduler_type = 'slurm'
     slurm = t.get('slurm', {}) or {}
     pbs = t.get('pbs', {}) or {}
     sites.append({
@@ -67,7 +70,7 @@ for i, t in enumerate(targets):
         'ip': res.get('ip', ''),
         'user': res.get('user', ''),
         'scheduler_type': scheduler_type,
-        'use_scheduler': use_scheduler and scheduler_type != '',
+        'use_scheduler': use_scheduler,
         'slurm_partition': slurm.get('partition', ''),
         'slurm_account': slurm.get('account', ''),
         'slurm_qos': slurm.get('qos', ''),
