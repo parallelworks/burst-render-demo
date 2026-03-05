@@ -20,6 +20,8 @@ set -e
 
 JOB_DIR="${PW_PARENT_JOB_DIR%/}"
 SCRIPT_DIR="${JOB_DIR}/scripts"
+WORK_DIR=$(mktemp -d)
+trap "rm -rf ${WORK_DIR}" EXIT
 
 # Find Python and pw
 PYTHON_CMD=""
@@ -134,36 +136,41 @@ render_site() {
         # Remote site — checkout, setup, and render via pw ssh
         echo "[${site_id}] Dispatching to remote site ${site_name}..."
 
-        # Build render command
-        local render_cmd="
-            set -e
-            cd \${PW_PARENT_JOB_DIR:-\${HOME}/pw/jobs}
+        # Build render script as a temp file (pw ssh doesn't pass stdin)
+        local script_file="${WORK_DIR}/render_${site_id}.sh"
+        cat > "${script_file}" <<RENDER_SCRIPT
+#!/bin/bash
+set -e
+cd \${PW_PARENT_JOB_DIR:-\${HOME}/pw/jobs}
 
-            # Checkout if not already done
-            if [ ! -f scripts/render_tiles.sh ]; then
-                echo 'Checking out scripts...'
-                git clone --depth 1 --sparse --filter=blob:none ${REPO_URL} _checkout_tmp 2>/dev/null
-                cd _checkout_tmp && git sparse-checkout set scripts 2>/dev/null && cd ..
-                cp -r _checkout_tmp/scripts . && rm -rf _checkout_tmp
-            fi
+# Checkout if not already done
+if [ ! -f scripts/render_tiles.sh ]; then
+    echo 'Checking out scripts...'
+    git clone --depth 1 --sparse --filter=blob:none ${REPO_URL} _checkout_tmp 2>/dev/null
+    cd _checkout_tmp && git sparse-checkout set scripts 2>/dev/null && cd ..
+    cp -r _checkout_tmp/scripts . && rm -rf _checkout_tmp
+fi
 
-            # Setup
-            cd scripts && bash setup.sh && cd ..
+# Setup
+cd scripts && bash setup.sh && cd ..
 
-            # Render
-            export DASHBOARD_URL='${DASHBOARD_URL}'
-            export SITE_ID='${site_id}'
-            export TILE_START=${tile_start}
-            export TILE_END=${tile_end}
-            export GRID_SIZE=${GRID_SIZE}
-            export IMAGE_SIZE=${IMAGE_SIZE}
-            export PALETTE='${PALETTE}'
-            $([ "${PARALLELISM}" != "auto" ] && echo "export NUM_WORKERS=${PARALLELISM}")
+# Render
+export DASHBOARD_URL='${DASHBOARD_URL}'
+export SITE_ID='${site_id}'
+export TILE_START=${tile_start}
+export TILE_END=${tile_end}
+export GRID_SIZE=${GRID_SIZE}
+export IMAGE_SIZE=${IMAGE_SIZE}
+export PALETTE='${PALETTE}'
+$([ "${PARALLELISM}" != "auto" ] && echo "export NUM_WORKERS=${PARALLELISM}")
 
-            bash scripts/render_tiles.sh
-        "
+bash scripts/render_tiles.sh
+RENDER_SCRIPT
 
-        echo "${render_cmd}" | ${PW_CMD} ssh "${site_name}" bash 2>&1 | \
+        # Read script content and pass as a single command string
+        local script_content
+        script_content=$(cat "${script_file}")
+        ${PW_CMD} ssh "${site_name}" "${script_content}" 2>&1 | \
             sed "s/^/[${site_id}] /"
     fi
 }
