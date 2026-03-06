@@ -802,14 +802,12 @@ function drawTopology() {
       // Summary below nodes
       g.fillStyle = '#6b7a90';
       g.font = '9px Inter, system-ui, sans-serif';
-      const workers = s.num_workers || 1;
-      g.fillText(nodeNames.length + (nodeNames.length === 1 ? ' node' : ' nodes') + ' · ' + workers + 'w/node', nodeX, nodesY + nodeRadius + 14);
+      g.fillText(nodeNames.length + (nodeNames.length === 1 ? ' node' : ' nodes') + ' · ' + s.count + ' ' + unitLabel, nodeX, nodesY + nodeRadius + 14);
     } else {
-      // No node data yet — show workers info
-      const workers = s.num_workers || 1;
+      // No node data yet — show tile count
       g.fillStyle = '#6b7a90';
       g.font = '9px Inter, system-ui, sans-serif';
-      g.fillText(workers + ' workers · ' + s.count + ' ' + unitLabel, nodeX, siteY + 38);
+      g.fillText(s.count + ' ' + unitLabel, nodeX, siteY + 38);
     }
   });
 }
@@ -1018,16 +1016,17 @@ function updateStats(elapsed_s) {
       const color = getSiteColor(siteId);
       const name = s.cluster_name || siteId;
       const scheduler = s.scheduler_type ? ` (${s.scheduler_type})` : '';
-      const workers = s.num_workers || 1;
+      const nodeCount = s.nodes ? Object.keys(s.nodes).length : 0;
       const siteLabel = `Site ${idx + 1}`;
       const icon = '&#9900;';
       const avgMs = s.count > 0 ? Math.round(s.total_render_ms / s.count) : 0;
+      const nodeInfo = nodeCount > 0 ? `${nodeCount} ${nodeCount === 1 ? 'node' : 'nodes'}` : '1 node';
       container.innerHTML += `
         <div class="site-card">
           <div class="site-icon" style="background:${color}20; color:${color};">${icon}</div>
           <div class="site-info">
             <div class="site-name">${name}${scheduler}</div>
-            <div class="site-detail">${siteLabel} &middot; ${workers} workers &middot; ${avgMs}ms avg</div>
+            <div class="site-detail">${siteLabel} &middot; ${nodeInfo} &middot; ${avgMs}ms avg</div>
           </div>
           <div class="site-count" style="color:${color}">${s.count}</div>
         </div>`;
