@@ -260,6 +260,20 @@ jobs:
                 optional: true
                 ignore: ${{ inputs.targets.[index].resource.schedulerType != 'slurm' || inputs.targets.[index].scheduler == false }}
 
+              nodes:
+                label: Nodes
+                type: dropdown
+                default: "1"
+                tooltip: Number of compute nodes to request. Each node renders a portion of the tiles.
+                options:
+                  - value: "1"
+                    label: "1 node"
+                  - value: "2"
+                    label: "2 nodes"
+                  - value: "4"
+                    label: "4 nodes"
+                ignore: ${{ inputs.targets.[index].resource.schedulerType != 'slurm' || inputs.targets.[index].scheduler == false }}
+
               time:
                 label: Walltime
                 type: string
@@ -344,8 +358,8 @@ jobs:
           parallelism:
             type: dropdown
             label: Worker Threads
-            tooltip: Number of parallel render processes per site. Auto uses all available CPU cores.
-            default: "auto"
+            tooltip: Number of parallel render processes per node. Auto uses all available CPU cores.
+            default: "1"
             options:
               - value: "auto"
                 label: "Auto (all cores)"

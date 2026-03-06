@@ -75,6 +75,7 @@ for i, t in enumerate(targets):
         'slurm_account': slurm.get('account', ''),
         'slurm_qos': slurm.get('qos', ''),
         'slurm_time': slurm.get('time', '00:05:00'),
+        'slurm_nodes': slurm.get('nodes', '1'),
         'slurm_directives': slurm.get('scheduler_directives', ''),
         'pbs_directives': pbs.get('scheduler_directives', ''),
     })
@@ -139,8 +140,9 @@ render_site() {
     local slurm_account=$9
     local slurm_qos=${10}
     local slurm_time=${11}
-    local slurm_directives=${12}
-    local pbs_directives=${13}
+    local slurm_nodes=${12}
+    local slurm_directives=${13}
+    local pbs_directives=${14}
 
     local site_id="site-$((site_index + 1))"
     local num_tiles=$((tile_end - tile_start))
@@ -191,7 +193,8 @@ render_site() {
             [ -n "${slurm_account}" ] && srun_cmd="${srun_cmd} --account=${slurm_account}"
             [ -n "${slurm_qos}" ] && srun_cmd="${srun_cmd} --qos=${slurm_qos}"
             [ -n "${slurm_time}" ] && srun_cmd="${srun_cmd} --time=${slurm_time}"
-            srun_cmd="${srun_cmd} --nodes=1 --ntasks=1"
+            local nodes="${slurm_nodes:-1}"
+            srun_cmd="${srun_cmd} --nodes=${nodes} --ntasks=${nodes}"
         fi
 
         # Build render script
@@ -336,12 +339,14 @@ for i in $(seq 0 $((NUM_SITES - 1))); do
     slurm_account=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_account',''))")
     slurm_qos=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_qos',''))")
     slurm_time=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_time','00:05:00'))")
+    slurm_nodes=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_nodes','1'))")
     slurm_directives=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('slurm_directives',''))")
     pbs_directives=$(echo "${SITES_JSON}" | ${PYTHON_CMD} -c "import sys,json;print(json.load(sys.stdin)[${i}].get('pbs_directives',''))")
 
     render_site "${i}" "${site_name}" "${site_ip}" "${tile_start}" "${tile_end}" \
         "${use_scheduler}" "${scheduler_type}" \
-        "${slurm_partition}" "${slurm_account}" "${slurm_qos}" "${slurm_time}" "${slurm_directives}" \
+        "${slurm_partition}" "${slurm_account}" "${slurm_qos}" "${slurm_time}" \
+        "${slurm_nodes}" "${slurm_directives}" \
         "${pbs_directives}" &
     PIDS+=($!)
     SITE_NAMES+=("${site_name}")

@@ -108,11 +108,20 @@ async def receive_tile(
             "cluster_name": meta.get("cluster_name", ""),
             "scheduler_type": meta.get("scheduler_type", ""),
             "num_workers": meta.get("num_workers", 1),
+            "nodes": {},
         }
     stats = state["site_stats"][site_id]
     stats["count"] += 1
     stats["total_render_ms"] += meta.get("render_time_ms", 0)
     stats["last_ts"] = now
+
+    # Track per-node stats within each site
+    node_hostname = meta.get("node_hostname", "")
+    if node_hostname:
+        if node_hostname not in stats["nodes"]:
+            stats["nodes"][node_hostname] = {"count": 0, "total_render_ms": 0}
+        stats["nodes"][node_hostname]["count"] += 1
+        stats["nodes"][node_hostname]["total_render_ms"] += meta.get("render_time_ms", 0)
 
     # Broadcast to all WebSocket clients
     msg = json.dumps({

@@ -690,42 +690,33 @@ function drawTopology() {
   const unitLabel = workloadType === 'fractal' ? 'tiles' : 'tasks';
 
   // Draw controller node at center-top
-  const cx = w / 2, cy = 50;
+  const cx = w / 2, cy = 40;
   g.beginPath();
-  g.arc(cx, cy, 22, 0, Math.PI * 2);
+  g.arc(cx, cy, 20, 0, Math.PI * 2);
   g.fillStyle = '#22d3ee22';
   g.fill();
   g.strokeStyle = '#22d3ee';
   g.lineWidth = 2;
   g.stroke();
   g.fillStyle = '#22d3ee';
-  g.font = 'bold 11px Inter, system-ui, sans-serif';
+  g.font = 'bold 10px Inter, system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillText('CTRL', cx, cy);
 
-  // Position site nodes in an arc below
-  const startAngle = Math.PI * 0.2;
-  const endAngle = Math.PI * 0.8;
-  const radius = Math.min(w, h) * 0.35;
-  const arcCenterY = cy + 20;
+  // Position site nodes below controller
+  const siteSpacing = Math.min(200, (w - 80) / siteIds.length);
+  const siteY = cy + 80;
 
   siteIds.forEach((siteId, i) => {
     const s = siteStats[siteId];
     const color = getSiteColor(siteId);
-    const angle = siteIds.length === 1
-      ? Math.PI / 2
-      : startAngle + (endAngle - startAngle) * (i / (siteIds.length - 1));
-    const sx = cx + Math.cos(angle) * radius * (angle < Math.PI / 2 ? -1 : 1);
-    const rawX = cx - radius * Math.cos(angle);
-    const sy = arcCenterY + radius * Math.sin(angle);
-    const nodeX = w / 2 + (i - (siteIds.length - 1) / 2) * Math.min(180, (w - 100) / siteIds.length);
-    const nodeY = Math.min(h - 60, cy + radius + 30);
+    const nodeX = w / 2 + (i - (siteIds.length - 1) / 2) * siteSpacing;
 
-    // Connection line
+    // Connection line from controller to site
     g.beginPath();
-    g.moveTo(cx, cy + 22);
-    g.lineTo(nodeX, nodeY - 30);
+    g.moveTo(cx, cy + 20);
+    g.lineTo(nodeX, siteY - 26);
     g.strokeStyle = color + '44';
     g.lineWidth = 2;
     g.stroke();
@@ -734,7 +725,7 @@ function drawTopology() {
     const progress = (Date.now() % 2000) / 2000;
     if (s.count > 0 && completedTiles < totalTiles) {
       const dotX = cx + (nodeX - cx) * progress;
-      const dotY = (cy + 22) + (nodeY - 30 - cy - 22) * progress;
+      const dotY = (cy + 20) + (siteY - 26 - cy - 20) * progress;
       g.beginPath();
       g.arc(dotX, dotY, 3, 0, Math.PI * 2);
       g.fillStyle = color;
@@ -743,7 +734,7 @@ function drawTopology() {
 
     // Site node circle
     g.beginPath();
-    g.arc(nodeX, nodeY, 28, 0, Math.PI * 2);
+    g.arc(nodeX, siteY, 24, 0, Math.PI * 2);
     g.fillStyle = color + '18';
     g.fill();
     g.strokeStyle = color;
@@ -754,21 +745,72 @@ function drawTopology() {
     const name = s.cluster_name || siteId;
     const shortName = name.length > 12 ? name.slice(0, 11) + '…' : name;
     g.fillStyle = color;
-    g.font = 'bold 10px Inter, system-ui, sans-serif';
+    g.font = 'bold 9px Inter, system-ui, sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText(shortName, nodeX, nodeY - 6);
+    g.fillText(shortName, nodeX, siteY - 6);
 
-    // Count + unit
+    // Tile count in site circle
     g.fillStyle = '#e0e6f0';
-    g.font = 'bold 14px Inter, system-ui, sans-serif';
-    g.fillText(String(s.count), nodeX, nodeY + 10);
+    g.font = 'bold 12px Inter, system-ui, sans-serif';
+    g.fillText(String(s.count), nodeX, siteY + 9);
 
-    // Workers info below node
-    const workers = s.num_workers || 1;
-    g.fillStyle = '#6b7a90';
-    g.font = '10px Inter, system-ui, sans-serif';
-    g.fillText(workers + ' workers · ' + (s.count) + ' ' + unitLabel, nodeX, nodeY + 42);
+    // Draw individual compute nodes below the site
+    const nodes = s.nodes || {};
+    const nodeNames = Object.keys(nodes);
+    const numNodes = Math.max(nodeNames.length, 1);
+    const nodeRadius = 14;
+    const nodeSpacing = Math.min(50, (siteSpacing - 20) / numNodes);
+    const nodesY = siteY + 60;
+
+    if (nodeNames.length > 0) {
+      // Draw connection lines from site to each node
+      nodeNames.forEach((nodeName, ni) => {
+        const nx = nodeX + (ni - (nodeNames.length - 1) / 2) * nodeSpacing;
+        const nodeData = nodes[nodeName];
+
+        // Line from site to node
+        g.beginPath();
+        g.moveTo(nodeX, siteY + 24);
+        g.lineTo(nx, nodesY - nodeRadius);
+        g.strokeStyle = color + '33';
+        g.lineWidth = 1.5;
+        g.stroke();
+
+        // Node circle (same color family, slightly different shade)
+        g.beginPath();
+        g.arc(nx, nodesY, nodeRadius, 0, Math.PI * 2);
+        g.fillStyle = color + '12';
+        g.fill();
+        g.strokeStyle = color + '88';
+        g.lineWidth = 1.5;
+        g.stroke();
+
+        // Short node name (last segment of hostname)
+        const parts = nodeName.split('-');
+        const shortNode = parts.length > 1 ? parts[parts.length - 1] : nodeName.slice(0, 6);
+        g.fillStyle = color + 'cc';
+        g.font = '8px Inter, system-ui, sans-serif';
+        g.fillText(shortNode, nx, nodesY - 3);
+
+        // Node tile count
+        g.fillStyle = '#e0e6f0';
+        g.font = 'bold 10px Inter, system-ui, sans-serif';
+        g.fillText(String(nodeData.count), nx, nodesY + 9);
+      });
+
+      // Summary below nodes
+      g.fillStyle = '#6b7a90';
+      g.font = '9px Inter, system-ui, sans-serif';
+      const workers = s.num_workers || 1;
+      g.fillText(nodeNames.length + (nodeNames.length === 1 ? ' node' : ' nodes') + ' · ' + workers + 'w/node', nodeX, nodesY + nodeRadius + 14);
+    } else {
+      // No node data yet — show workers info
+      const workers = s.num_workers || 1;
+      g.fillStyle = '#6b7a90';
+      g.font = '9px Inter, system-ui, sans-serif';
+      g.fillText(workers + ' workers · ' + s.count + ' ' + unitLabel, nodeX, siteY + 38);
+    }
   });
 }
 
