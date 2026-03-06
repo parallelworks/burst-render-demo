@@ -51,10 +51,39 @@ if [ -z "${CLUSTER_NAME}" ] || [ -z "${SCHEDULER_TYPE}" ]; then
     [ -z "${SCHEDULER_TYPE}" ] && SCHEDULER_TYPE="ssh"
 fi
 
+# Multi-node SLURM: subdivide tile range across tasks using SLURM_PROCID
+if [ -n "${SLURM_NTASKS}" ] && [ "${SLURM_NTASKS}" -gt 1 ] && [ -n "${SLURM_PROCID}" ]; then
+    ORIGINAL_START=${TILE_START}
+    ORIGINAL_END=${TILE_END}
+    RANGE=$((ORIGINAL_END - ORIGINAL_START))
+    BASE=$((RANGE / SLURM_NTASKS))
+    EXTRA=$((RANGE % SLURM_NTASKS))
+    NEW_START=${ORIGINAL_START}
+    for i in $(seq 0 $((SLURM_PROCID - 1))); do
+        if [ "${i}" -lt "${EXTRA}" ]; then
+            NEW_START=$((NEW_START + BASE + 1))
+        else
+            NEW_START=$((NEW_START + BASE))
+        fi
+    done
+    if [ "${SLURM_PROCID}" -lt "${EXTRA}" ]; then
+        NEW_END=$((NEW_START + BASE + 1))
+    else
+        NEW_END=$((NEW_START + BASE))
+    fi
+    TILE_START=${NEW_START}
+    TILE_END=${NEW_END}
+    echo "SLURM multi-node: task ${SLURM_PROCID}/${SLURM_NTASKS}, tiles ${TILE_START}-$((TILE_END - 1)) (of ${ORIGINAL_START}-$((ORIGINAL_END - 1)))"
+fi
+
+# Capture hostname for per-node tracking
+NODE_HOSTNAME=$(hostname -s 2>/dev/null || hostname)
+
 echo "=========================================="
 echo "Tile Renderer Starting: $(date)"
 echo "=========================================="
 echo "Site:       ${SITE_ID}"
+echo "Node:       ${NODE_HOSTNAME}"
 echo "Cluster:    ${CLUSTER_NAME}"
 echo "Scheduler:  ${SCHEDULER_TYPE:-unknown}"
 echo "Dashboard:  ${DASHBOARD_URL}"
@@ -142,6 +171,7 @@ render_one() {
         --cluster-name "${CLUSTER_NAME}" \
         --scheduler-type "${SCHEDULER_TYPE}" \
         --num-workers "${NUM_WORKERS}" \
+        --node-hostname "${NODE_HOSTNAME}" \
         --output "${tile_file}" \
     )
 
@@ -165,7 +195,7 @@ render_one() {
 }
 
 export -f render_one atomic_inc
-export PYTHON_CMD RENDERER POST_TILE GRID_SIZE IMAGE_SIZE PALETTE SITE_ID CLUSTER_NAME SCHEDULER_TYPE DASHBOARD_URL WORK_DIR TOTAL LOCK_DIR NUM_WORKERS
+export PYTHON_CMD RENDERER POST_TILE GRID_SIZE IMAGE_SIZE PALETTE SITE_ID CLUSTER_NAME SCHEDULER_TYPE DASHBOARD_URL WORK_DIR TOTAL LOCK_DIR NUM_WORKERS NODE_HOSTNAME
 
 # Launch tiles across workers using xargs for parallel execution
 seq ${TILE_START} $((TILE_END - 1)) | xargs -P "${NUM_WORKERS}" -I{} bash -c 'render_one "$@"' _ {}
