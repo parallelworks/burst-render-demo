@@ -156,7 +156,7 @@ render_site() {
 
     if [ "${site_index}" -eq 0 ]; then
         # First site = dashboard host, render locally (repo already checked out)
-        echo "[${site_id}] Rendering locally on dashboard host..."
+        echo "[${site_id}] Rendering locally on dashboard host [${dispatch_mode}]..."
         (
             export DASHBOARD_URL="${DASHBOARD_URL}"
             export SITE_ID="${site_id}"
@@ -168,7 +168,22 @@ render_site() {
             if [ "${PARALLELISM}" != "auto" ]; then
                 export NUM_WORKERS="${PARALLELISM}"
             fi
-            bash "${SCRIPT_DIR}/render_tiles.sh"
+
+            if [ "${dispatch_mode}" = "slurm" ]; then
+                # Build srun command for local SLURM submission
+                local_srun="srun"
+                [ -n "${slurm_partition}" ] && local_srun="${local_srun} --partition=${slurm_partition}"
+                [ -n "${slurm_account}" ] && local_srun="${local_srun} --account=${slurm_account}"
+                [ -n "${slurm_qos}" ] && local_srun="${local_srun} --qos=${slurm_qos}"
+                [ -n "${slurm_time}" ] && local_srun="${local_srun} --time=${slurm_time}"
+                local_nodes="${slurm_nodes:-1}"
+                local_srun="${local_srun} --nodes=${local_nodes} --ntasks=${local_nodes}"
+                export SCHEDULER_TYPE="slurm"
+                echo "[${site_id}] Submitting to SLURM: ${local_srun} bash ${SCRIPT_DIR}/render_tiles.sh"
+                ${local_srun} bash "${SCRIPT_DIR}/render_tiles.sh"
+            else
+                bash "${SCRIPT_DIR}/render_tiles.sh"
+            fi
         )
     else
         # Remote site — checkout, setup, and render via SSH with reverse tunnel
