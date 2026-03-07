@@ -124,6 +124,7 @@ def main():
     parser.add_argument("--cluster-name", default="")
     parser.add_argument("--scheduler-type", default="")
     parser.add_argument("--num-workers", type=int, default=1)
+    parser.add_argument("--node-hostname", default="")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -151,6 +152,7 @@ def main():
         "cluster_name": args.cluster_name,
         "scheduler_type": args.scheduler_type,
         "num_workers": args.num_workers,
+        "node_hostname": args.node_hostname,
         "palette": args.palette,
     }
     print(json.dumps(meta))
