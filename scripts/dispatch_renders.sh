@@ -6,6 +6,27 @@
 #   2. Checks out the repo
 #   3. Launches render_tiles.sh with the site's tile range
 #
+# REMOTE-SHELL COMPATIBILITY (bash, tcsh, sh)
+# ===========================================
+# Compute sites may use any login shell — DoD HPC sites (ERDC, ARL) commonly
+# default to tcsh. To stay portable, every command this script sends for the
+# remote login shell to interpret must obey these rules:
+#
+#   1. Only POSIX-common syntax in the remote command string.
+#      Safe: `echo`, `hostname`, `&&`, `||`, `;`, `$VAR` expansion, single quotes.
+#      Unsafe: bash arrays, `[[...]]`, process substitution, `\"` inside `"..."`
+#              (tcsh does NOT honor backslash-escape inside double quotes).
+#
+#   2. To run a script body on the remote, pipe it via stdin to `bash -s`:
+#          ssh ... 'bash -s' < script_file
+#      The remote login shell only sees the word `bash`; the script body
+#      runs inside bash and may use any bash feature freely.
+#
+#   3. To run a remote python program, pipe the source via stdin to `python3`:
+#          ssh ... python3 <<'PYEOF' ... PYEOF
+#      Use direct `ssh` (not `pw ssh`) — `pw ssh` does not forward stdin
+#      to the remote command.
+#
 # Environment variables:
 #   TARGETS_JSON   - JSON array of target objects from workflow inputs
 #   DASHBOARD_URL  - Dashboard URL (reachable from dashboard host)
@@ -159,11 +180,14 @@ render_site() {
 
     # Probe SSH reachability first — gives a clear error on fresh accounts
     # where site credentials / SSH keys may not be provisioned yet.
+    # The probe also reports the remote login shell so future shell-related
+    # issues are easy to diagnose. `$SHELL` expansion is identical in
+    # bash/tcsh/sh, and `&&` is supported by all three.
     echo "[${site_id}] Probing SSH to ${site_name} via: ${PW_CMD} ssh ${site_name} ..."
     local probe_stderr="${WORK_DIR}/probe_${site_id}.err"
     local probe_stdout
     set +e
-    probe_stdout=$(${PW_CMD} ssh "${site_name}" 'echo PW_SSH_OK && hostname' 2>"${probe_stderr}")
+    probe_stdout=$(${PW_CMD} ssh "${site_name}" 'echo PW_SSH_OK && hostname && echo "shell=$SHELL"' 2>"${probe_stderr}")
     local probe_rc=$?
     set -e
     if [ ${probe_rc} -ne 0 ] || [[ "${probe_stdout}" != *PW_SSH_OK* ]]; then
